@@ -1,9 +1,10 @@
-import axios from 'axios';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Form } from 'react-bootstrap';
+import { Button, Form, FormControl } from 'react-bootstrap';
+import { FaSearch } from 'react-icons/fa';
+import axios from 'axios';
 
 const API_URL = 'https://api.unsplash.com/search/photos';
-const IMAGES_PER_PAGE = 12;
+const IMAGES_PER_PAGE = 8;
 
 function App() {
   const searchInput = useRef(null);
@@ -12,6 +13,8 @@ function App() {
   const [totalPages, setTotalPages] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadMoreLoading, setLoadMoreLoading] = useState(false);
+  const [searchPerformed, setSearchPerformed] = useState(false);
 
   const fetchImages = useCallback(async () => {
     try {
@@ -20,17 +23,25 @@ function App() {
         setLoading(true);
         const { data } = await axios.get(
           `${API_URL}?query=${searchInput.current.value
-          }&page=${page}&per_page=${IMAGES_PER_PAGE}&client_id=${import.meta.env.VITE_API_KEY
-          }`
+          }&page=${page}&per_page=${IMAGES_PER_PAGE}&client_id=${import.meta.env.VITE_API_KEY}`
         );
-        setImages(data.results);
+
+        if (page > 1) {
+          setImages((prevImages) => [...prevImages, ...data.results]);
+        } else {
+          setImages(data.results);
+        }
+
         setTotalPages(data.total_pages);
         setLoading(false);
+        setLoadMoreLoading(false);
+        setSearchPerformed(true); // Set searchPerformed to true after fetching images
       }
     } catch (error) {
       setErrorMsg('Error fetching images. Try again later.');
       console.log(error);
       setLoading(false);
+      setLoadMoreLoading(false);
     }
   }, [page]);
 
@@ -38,60 +49,80 @@ function App() {
     fetchImages();
   }, [fetchImages]);
 
-  const resetSearch = () => {
+  const handleSearch = async (event) => {
+    event.preventDefault();
     setPage(1);
+    setLoadMoreLoading(false);
+    setSearchPerformed(false); // Reset searchPerformed before searching
     fetchImages();
   };
 
-  const handleSearch = (event) => {
-    event.preventDefault();
-    resetSearch();
+  const handleLoadMore = () => {
+    setLoadMoreLoading(true);
+    setPage((prevPage) => prevPage + 1);
   };
 
   return (
-    <div className='container'>
-      <h1 className='title'>Image Search</h1>
-      {errorMsg && <p className='error-msg'>{errorMsg}</p>}
-      <div className='search-section'>
-        <Form onSubmit={handleSearch}>
-          <Form.Control
+    <div style={{ backgroundColor: '#E0E0E0', padding: '130px', margin: '1px' }}>
+      <Form onSubmit={handleSearch} style={{ width: '100%' }}>
+        <div style={{ display: 'flex', marginBottom: '10px' }}>
+          <FormControl
             type='search'
             placeholder='Search For Image...'
-            className='search-input'
+            className='mr-sm-2 search-input'
             ref={searchInput}
+            style={{ flex: '1', height: '50px', width: 'calc(10px - 28px)', borderRadius: '5px 0 0 5px', marginRight: '8px' }}
           />
-        </Form>
-      </div>
-      <h1 style={{ textAlign: "center", marginLeft: "3%", fontStyle: "bold", fontSize: "20px" }}>
-        Result for </h1>
-      <p style={{ textAlign: "center", marginLeft: "3%", fontStyle: "bold", fontSize: "20px" }}>
-        {totalPages * IMAGES_PER_PAGE}  images are founded
-      </p>
-      {loading ? (
-        <p className='loading'>Loading...</p>
-      ) : (
-        <>
-          <div className='images'>
-            {images.map((image) => (
-              <img
-                key={image.id}
-                src={image.urls.small}
-                alt={image.alt_description}
-                className='image'
-              />
-            ))}
-          </div>
+          <Button
+            style={{
+              width: '50px',
+              height: '50px',
+              borderRadius: '1px',
+              backgroundColor: 'black',
+            }}
+            variant='primary'
+            onClick={handleSearch}
+          >
+            <FaSearch />
+          </Button>
+        </div>
+      </Form>
+      {errorMsg && <p style={{ textAlign: 'center', color: 'red' }}>{errorMsg}</p>}
 
-          <div className='buttons' >
-            {page > 1 && (
-              <Button onClick={() => setPage(page - 1)}>Previous</Button>
-            )}
-            {page < totalPages && (
-              <Button onClick={() => setPage(page + 1)}>Next</Button>
-            )}
-          </div>
+      {/* Conditionally render the result section */}
+      {searchPerformed && (
+        <>
+
+          <h1 style={{ textAlign: 'start', fontStyle: 'bold', fontSize: '1.5em' }}>
+            {searchInput.current && searchInput.current.value}
+          </h1>
+          <p style={{ textAlign: 'start', fontStyle: 'bold', fontSize: '1.2em' }}>
+            {totalPages * IMAGES_PER_PAGE} images has been found
+          </p>
         </>
       )}
+      {loading ? (
+        <p style={{ textAlign: 'center', fontSize: '1.2em' }}>Loading...</p>
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap' }}>
+          {images.map((image) => (
+            <div key={image.id} style={{ margin: '10px', width: 'calc(25% - 20px)', textAlign: 'center' }}>
+              <img
+                src={image.urls.small}
+                alt={image.alt_description}
+                style={{ width: '100%', height: '100%', maxHeight: '300px', objectFit: 'cover', flex: 1 }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
+        {page < totalPages && (
+          <Button onClick={handleLoadMore} disabled={loadMoreLoading} style={{ backgroundColor: 'black', borderRadius: '5px' }}>
+            {loadMoreLoading ? 'Loading...' : 'Load More'}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
